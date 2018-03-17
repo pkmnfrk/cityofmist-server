@@ -12,16 +12,15 @@ const faye = require('faye');
 const static = require('node-static');
 const datastore = require("./datastore");
 const url = require('url');
-
 const roll_listener = require("./roll_listener");
-
-
 const argv = require('yargs').argv;
+
+var client_path = argv.client_path || "./dist";
 
 
 
 var bayeux = new faye.NodeAdapter({mount: '/faye', timeout: 45});
-var fileServer = new static.Server('./dist', { 
+var fileServer = new static.Server(client_path, { 
 	cache: 0,
 	gzip: true
 });
