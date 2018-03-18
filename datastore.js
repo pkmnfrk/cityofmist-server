@@ -31,7 +31,7 @@ function bucket_name() {
 function save_put(req, res, bayeux) {
     var uri = url.parse(req.url);
     
-    var id = uri.pathname.substring(6); // remove /save/
+    var id = uri.pathname.substring(10); // remove /api/save/
     
     var body = "";
     
@@ -40,7 +40,8 @@ function save_put(req, res, bayeux) {
     });
     
     req.on('end', function() {
-        
+        //console.log(body);
+		
         var newItem = {
             "name": {
                 S: id
@@ -136,7 +137,7 @@ function map_put(req, res, bayeux) {
 function save_get(req, res, bayeux) {
     var uri = url.parse(req.url);
     
-    var id = uri.pathname.substring(6); // remove /save/
+    var id = uri.pathname.substring(10); // remove /api/save/
     
     req.on('end', function() {
         
@@ -168,6 +169,8 @@ function save_get(req, res, bayeux) {
             res.writeHead(200, { "Content-Type": "application/json"});
             
             var item = data.Item.data.S;
+			
+			//console.log(item);
             
             res.write(item);
             

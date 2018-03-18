@@ -19,7 +19,7 @@ var client_path = argv.client_path || "./dist";
 
 
 
-var bayeux = new faye.NodeAdapter({mount: '/faye', timeout: 45});
+var bayeux = new faye.NodeAdapter({mount: '/api/faye', timeout: 45});
 var fileServer = new static.Server(client_path, { 
 	cache: 0,
 	gzip: true
@@ -30,15 +30,21 @@ roll_listener.subscribe(bayeux);
 var server = http.createServer(function (req, res) {
     var uri = url.parse(req.url);
     
-    if(uri.pathname.startsWith("/save/")) {
-        return datastore.save(req, res, bayeux);
-    } else if(uri.pathname.startsWith("/map")) {
-		return datastore.map(req, res, bayeux);
+	//console.log(req.method + " " + req.url);
+	
+	if(uri.pathname.startsWith("/api")) {
+		uri.pathname = uri.pathname.substring(4);
+		
+		if(uri.pathname.startsWith("/save/")) {
+			return datastore.save(req, res, bayeux);
+		} else if(uri.pathname.startsWith("/map")) {
+			return datastore.map(req, res, bayeux);
+		}
+	} else {
+		req.addListener('end', function() {
+			fileServer.serve(req, res);
+		}).resume();
 	}
-    
-    req.addListener('end', function() {
-        fileServer.serve(req, res);
-    }).resume();
     
 });
 
