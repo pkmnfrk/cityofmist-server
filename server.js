@@ -21,7 +21,7 @@ var client_path = argv.client_path || "./dist";
 
 var bayeux = new faye.NodeAdapter({mount: '/api/faye', timeout: 45});
 var fileServer = new static.Server(client_path, { 
-	cache: 0,
+	cache: 7200,
 	gzip: true
 });
 
