@@ -24,12 +24,22 @@ function subscribe(bayeux)
 		
 		var status = message.who + " just rolled ";
 		
+		if(message.advantage) {
+			status += "with " + message.advantage + " ";
+		}
+		
 		for(var i = 0; i < message.dice.length; i++) {
 			if(i > 0) {
 				status += " + ";
 			}
 			
+			var dropped = message.dropped.indexOf(i) !== -1;
+			
+			if(dropped) status += "~~";
+			
 			status += "[" + message.dice[i] + "]";
+			
+			if(dropped) status += "~~";
 		}
 		
 		if(message.bonus) {

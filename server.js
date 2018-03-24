@@ -20,6 +20,16 @@ var client_path = argv.client_path || "./dist";
 
 
 var bayeux = new faye.NodeAdapter({mount: '/api/faye', timeout: 45});
+
+/*
+bayeux.on('subscribe', function(clientId, channel) {
+	console.log(clientId + " just subscribed to " + channel);
+});
+bayeux.on('publish', function(clientId, channel) {
+	console.log(clientId + " just published to " + channel);
+});
+*/
+
 var fileServer = new static.Server(client_path, { 
 	cache: 7200,
 	gzip: true
