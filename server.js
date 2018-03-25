@@ -35,8 +35,6 @@ var fileServer = new static.Server(client_path, {
 	gzip: true
 });
 
-roll_listener.subscribe(bayeux);
-
 var server = http.createServer(function (req, res) {
     var uri = url.parse(req.url);
     
@@ -49,6 +47,8 @@ var server = http.createServer(function (req, res) {
 			return datastore.save(req, res, bayeux);
 		} else if(uri.pathname.startsWith("/map")) {
 			return datastore.map(req, res, bayeux);
+		} else if(uri.pathname.startsWith("/roll")) {
+			return roll_listener.roll(req, res, bayeux);
 		}
 	} else {
 		req.addListener('end', function() {

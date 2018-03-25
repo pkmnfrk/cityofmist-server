@@ -6,9 +6,9 @@ var hookurl = argv.discord_dice_webhook || process.env.DISCORD_DICE_WEBHOOK;
 
 const discord_webhook = hookurl ? url.parse(hookurl) : null;
 
-function subscribe(bayeux)
+function send_discord_message(roll)
 {
-	/*    var message = {
+	/*    var roll = {
         label: label,
         when: Date.now(),
         who: who,
@@ -18,85 +18,108 @@ function subscribe(bayeux)
         total: total
     };*/
 	
-	bayeux.getClient().subscribe('/rolls/*').withChannel(function(channel, message) {
-		
-		//console.log("Detected roll");
-		
-		var status = message.who + " just rolled ";
-		
-		if(message.advantage) {
-			status += "with " + message.advantage + " ";
+	var status = roll.who + " just rolled ";
+	
+	if(roll.advantage) {
+		status += "with " + roll.advantage + " ";
+	}
+	
+	for(var i = 0; i < roll.dice.length; i++) {
+		if(i > 0) {
+			status += " + ";
 		}
 		
-		for(var i = 0; i < message.dice.length; i++) {
-			if(i > 0) {
-				status += " + ";
+		var dropped = roll.dropped.indexOf(i) !== -1;
+		
+		if(dropped) status += "~~";
+		
+		status += "[" + roll.dice[i] + "]";
+		
+		if(dropped) status += "~~";
+	}
+	
+	if(roll.bonus) {
+		status += " + " + roll.bonus;
+	}
+	if(roll.penalty) {
+		status += " - " + roll.penalty;
+	}
+	
+	status += " = " + roll.total;
+	
+	
+	if(roll.total >= 10) {
+		status += " _Full success!_";
+	} else if(roll.total >= 7) {
+		status += " _Partial success!_";
+	} else {
+		status += " _Miss!_";
+	}
+	
+	var discord_roll = {
+		content: status
+	}
+	
+	var str = JSON.stringify(discord_roll);
+	if(discord_webhook) {
+		var req = http.request({
+			protocol: discord_webhook.protocol,
+			hostname: discord_webhook.hostname,
+			port: discord_webhook.port,
+			path: discord_webhook.path,
+			query: discord_webhook.query,
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"Content-Length": Buffer.byteLength(str)
 			}
-			
-			var dropped = message.dropped.indexOf(i) !== -1;
-			
-			if(dropped) status += "~~";
-			
-			status += "[" + message.dice[i] + "]";
-			
-			if(dropped) status += "~~";
-		}
-		
-		if(message.bonus) {
-			status += " + " + message.bonus;
-		}
-		if(message.penalty) {
-			status += " - " + message.penalty;
-		}
-		
-		status += " = " + message.total;
-		
-		
-		if(message.total >= 10) {
-			status += " _Full success!_";
-		} else if(message.total >= 7) {
-			status += " _Partial success!_";
-		} else {
-			status += " _Miss!_";
-		}
-		
-		var discord_message = {
-			content: status
-		}
-		
-		var str = JSON.stringify(discord_message);
-		if(discord_webhook) {
-			var req = http.request({
-				protocol: discord_webhook.protocol,
-				hostname: discord_webhook.hostname,
-				port: discord_webhook.port,
-				path: discord_webhook.path,
-				query: discord_webhook.query,
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					"Content-Length": Buffer.byteLength(str)
-				}
-			}, function(res) {
-				res.on('data', function(d) {
-	//				console.log("Discord response body: " + d);
-				});
-				res.on('end', function() {
-					//console.log("Discord response done.");
-				});
+		}, function(res) {
+			res.on('data', function(d) {
+//				console.log("Discord response body: " + d);
 			});
-		
-			req.on("error", function(err) {
-				console.log("Error making discord request: " + err.message);
+			res.on('end', function() {
+				//console.log("Discord response done.");
 			});
-			
-			
-			req.write(str);
-			req.end();
-		}
+		});
+	
+		req.on("error", function(err) {
+			console.log("Error making discord request: " + err.roll);
+		});
+		
+		
+		req.write(str);
+		req.end();
+	}
+}
+
+function roll_post(req, res, bayeux) {
+	var room;
+	var uri = url.parse(req.url);
+	
+	[room] = uri.pathname.substring(10).split('/'); // remove /api/roll/
+	
+	var body = "";
+    
+    req.on('data', function(data) {
+        body += data;
+    });
+	
+	req.on('end', function() {
+		var roll = JSON.parse(body);
+		
+		send_discord_message(roll);
+		
+		bayeux.getClient().publish('/room/' + room, {
+			kind: "roll",
+			roll: roll
+		});
 	});
 }
 
 module.exports = {
-	subscribe: subscribe
+	roll: function(req, res, bayeux) {
+		if(req.method == "POST") {
+			return roll_post(req, res, bayeux);
+		}
+	}
 };

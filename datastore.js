@@ -125,7 +125,11 @@ function save_put(req, res, bayeux) {
             }
             
             //notify clients
-            bayeux.getClient().publish('/character/' + room, JSON.parse(body));
+            bayeux.getClient().publish('/room/' + room, {
+				kind: "character",
+				id: id,
+				character: JSON.parse(body)
+			});
             
             res.writeHead(200, { "Content-Type": "application/json"});
             res.write("{\"ok\":true}");
@@ -236,7 +240,7 @@ function map_put(req, res, bayeux) {
             }
             
             //notify clients
-            bayeux.getClient().publish('/map/' + room, { update: true });
+            bayeux.getClient().publish('/room/' + room, { kind: "map" });
             
             res.writeHead(200, { "Content-Type": "application/json"});
             res.write("{\"ok\":true}");
