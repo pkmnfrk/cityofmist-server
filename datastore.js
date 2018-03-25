@@ -31,10 +31,16 @@ function bucket_name() {
 function save_get(req, res, bayeux) {
     var uri = url.parse(req.url);
     
-    var id = uri.pathname.substring(10); // remove /api/save/
-    
+    [room, id] = uri.pathname.substring(10).split('/'); // remove /api/save/
+	
     req.on('end', function() {
-        
+        if(!room || !id) {
+			res.writeHead(400, {"Content-Type": "application/json"});
+			res.write(JSON.stringify({ message: "Both room and id are required"}));
+			res.end();
+			return;
+		}
+	
 		//console.log("Querying for '" + id + "'");
         var params = {
             Key: {
@@ -78,7 +84,7 @@ function save_get(req, res, bayeux) {
 function save_put(req, res, bayeux) {
     var uri = url.parse(req.url);
     
-    var id = uri.pathname.substring(10); // remove /api/save/
+    [room, id] = uri.pathname.substring(10).split('/'); // remove /api/save/
     
     var body = "";
     
@@ -88,6 +94,13 @@ function save_put(req, res, bayeux) {
     
     req.on('end', function() {
         //console.log(body);
+		
+		if(!room || !id) {
+			res.writeHead(400, {"Content-Type": "application/json"});
+			res.write(JSON.stringify({ message: "Both room and id are required"}));
+			res.end();
+			return;
+		}
 		
         var newItem = {
             "name": {
@@ -123,7 +136,18 @@ function save_put(req, res, bayeux) {
 }
 
 function map_get(req, res, bayeux) {
+	var uri = url.parse(req.url);
+    
+    [room] = uri.pathname.substring(9).split('/'); // remove /api/map/
+	
 	req.on('end', function() {
+		if(!room) {
+			res.writeHead(400, {"Content-Type": "application/json"});
+			res.write(JSON.stringify({ message: "The room is required"}));
+			res.end();
+			return;
+		}
+		
 		if(!decoded_map) {
 			res.writeHead(404, { "Content-Type": "application/json" });
 			res.write(JSON.stringify({ err: "No map has been uploaded" }));
@@ -142,6 +166,10 @@ function map_get(req, res, bayeux) {
 function map_put(req, res, bayeux) {
 	var body = "";
 	
+	var uri = url.parse(req.url);
+    
+    [room] = uri.pathname.substring(9).split('/'); // remove /api/map/
+	
 	//console.log("map_put");
 	
 	req.on('data', function(data) {
@@ -151,6 +179,12 @@ function map_put(req, res, bayeux) {
 	req.on('end', function() {
 		
 		//console.log("map_put req_end");
+		if(!room) {
+			res.writeHead(400, {"Content-Type": "application/json"});
+			res.write(JSON.stringify({ message: "The room is required"}));
+			res.end();
+			return;
+		}
         
 		var bucket = bucket_name();
 		
