@@ -105,7 +105,16 @@ function roll_post(req, res, bayeux) {
     });
 	
 	req.on('end', function() {
-		var roll = JSON.parse(body);
+		var roll;
+		
+		try {
+			roll = JSON.parse(body);
+		} catch(ex) {
+			res.writeHead(400, {"Content-Type": "application/json"});
+			res.write(JSON.stringify({ message: "Not a valid roll structure: " + ex.message}));
+			res.end();
+			return;
+		}
 		
 		send_discord_message(roll);
 		
@@ -113,6 +122,11 @@ function roll_post(req, res, bayeux) {
 			kind: "roll",
 			roll: roll
 		});
+		
+		res.writeHead(200, { "Content-Type": "application/json"});
+		res.write("{\"ok\":true}");
+		res.end();
+		return;
 	});
 }
 
