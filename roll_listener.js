@@ -1,6 +1,7 @@
 const http = require("https");
 const url = require("url");
 const argv = require('yargs').argv;
+const room_handler = require('./room_handler');
 
 var hookurl = argv.discord_dice_webhook || process.env.DISCORD_DICE_WEBHOOK;
 
@@ -117,11 +118,7 @@ function roll_post(req, res, bayeux) {
 		}
 		
 		send_discord_message(roll);
-		
-		bayeux.getClient().publish('/room/' + room, {
-			kind: "roll",
-			roll: roll
-		});
+		room_handler.addRoll(room, roll, bayeux);
 		
 		res.writeHead(200, { "Content-Type": "application/json"});
 		res.write("{\"ok\":true}");

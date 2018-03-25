@@ -13,6 +13,7 @@ const static = require('node-static');
 const datastore = require("./datastore");
 const url = require('url');
 const roll_listener = require("./roll_listener");
+const room_handler = require('./room_handler');
 const argv = require('yargs').argv;
 
 var client_path = argv.client_path || "./dist";
@@ -49,6 +50,8 @@ var server = http.createServer(function (req, res) {
 			return datastore.map(req, res, bayeux);
 		} else if(uri.pathname.startsWith("/roll")) {
 			return roll_listener.roll(req, res, bayeux);
+		} else if(uri.pathname.startsWith("/room")) {
+			return room_handler.room(req,res,bayeux);
 		}
 	} else {
 		req.addListener('end', function() {
