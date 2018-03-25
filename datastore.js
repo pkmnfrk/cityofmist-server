@@ -28,6 +28,53 @@ function bucket_name() {
 	return argv.s3_bucket || process.env.S3_BUCKET;
 }
 
+function save_get(req, res, bayeux) {
+    var uri = url.parse(req.url);
+    
+    var id = uri.pathname.substring(10); // remove /api/save/
+    
+    req.on('end', function() {
+        
+		//console.log("Querying for '" + id + "'");
+        var params = {
+            Key: {
+                "name": {
+                    S: id
+                }
+            },
+            TableName: "characters"
+        }
+        
+        dynamodb.getItem(params, function(err, data) {
+            if(err) {
+                res.writeHead(500, {"Content-Type": "application/json"});
+                res.write(JSON.stringify(err));
+                res.end();
+                return;
+            }
+            
+            if(data.Item == null) {
+                res.writeHead(404, {"Content-Type": "application/json"});
+                res.write("{\"ok\":false}");
+                res.end();
+                return;
+            }
+            
+            res.writeHead(200, { "Content-Type": "application/json"});
+            
+            var item = data.Item.data.S;
+			
+			//console.log(item);
+            
+            res.write(item);
+            
+            res.end();
+        });
+        
+        
+    }).resume();
+}
+
 function save_put(req, res, bayeux) {
     var uri = url.parse(req.url);
     
@@ -73,6 +120,23 @@ function save_put(req, res, bayeux) {
         
         
     }).resume();
+}
+
+function map_get(req, res, bayeux) {
+	req.on('end', function() {
+		if(!decoded_map) {
+			res.writeHead(404, { "Content-Type": "application/json" });
+			res.write(JSON.stringify({ err: "No map has been uploaded" }));
+			res.end();
+			return;
+		}
+		
+		res.writeHead(200, { "Content-Type": "image/png" });
+		res.write(decoded_map);
+		res.end();
+		return;
+		
+	}).resume();
 }
 
 function map_put(req, res, bayeux) {
@@ -132,70 +196,6 @@ function map_put(req, res, bayeux) {
         
         
     }).resume();
-}
-
-function save_get(req, res, bayeux) {
-    var uri = url.parse(req.url);
-    
-    var id = uri.pathname.substring(10); // remove /api/save/
-    
-    req.on('end', function() {
-        
-		//console.log("Querying for '" + id + "'");
-        var params = {
-            Key: {
-                "name": {
-                    S: id
-                }
-            },
-            TableName: "characters"
-        }
-        
-        dynamodb.getItem(params, function(err, data) {
-            if(err) {
-                res.writeHead(500, {"Content-Type": "application/json"});
-                res.write(JSON.stringify(err));
-                res.end();
-                return;
-            }
-            
-            if(data.Item == null) {
-                res.writeHead(404, {"Content-Type": "application/json"});
-                res.write("{\"ok\":false}");
-                res.end();
-                return;
-            }
-            
-            res.writeHead(200, { "Content-Type": "application/json"});
-            
-            var item = data.Item.data.S;
-			
-			//console.log(item);
-            
-            res.write(item);
-            
-            res.end();
-        });
-        
-        
-    }).resume();
-}
-
-function map_get(req, res, bayeux) {
-	req.on('end', function() {
-		if(!decoded_map) {
-			res.writeHead(404, { "Content-Type": "application/json" });
-			res.write(JSON.stringify({ err: "No map has been uploaded" }));
-			res.end();
-			return;
-		}
-		
-		res.writeHead(200, { "Content-Type": "image/png" });
-		res.write(decoded_map);
-		res.end();
-		return;
-		
-	}).resume();
 }
 
 module.exports = {
