@@ -6,8 +6,9 @@ var s3 = new AWS.S3();
 
 const argv = require('yargs').argv;
 
-var decoded_map = null;
+var decoded_maps = {};
 
+/*
 if(bucket_name()) {
 	
 	s3.getObject({
@@ -22,125 +23,25 @@ if(bucket_name()) {
 		decoded_map = Buffer.from(data.Body);
 	})
 	
-}
+}*/
 
 function bucket_name() {
 	return argv.s3_bucket || process.env.S3_BUCKET;
 }
 
-function save_put(req, res, bayeux) {
-    var uri = url.parse(req.url);
-    
-    var id = uri.pathname.substring(10); // remove /api/save/
-    
-    var body = "";
-    
-    req.on('data', function(data) {
-        body += data;
-    });
-    
-    req.on('end', function() {
-        //console.log(body);
-		
-        var newItem = {
-            "name": {
-                S: id
-            },
-            "data": {
-                S: body
-            }
-        };
-        
-        dynamodb.putItem({
-            Item: newItem,
-            TableName: "characters"
-        }, function(err, data) {
-            
-            if(err) {
-                res.writeHead(500, {"Content-Type": "application/json"});
-                res.write(JSON.stringify(err));
-                res.end();
-                return;
-            }
-            
-            //notify clients
-            bayeux.getClient().publish('/character/' + id, JSON.parse(body));
-            
-            res.writeHead(200, { "Content-Type": "application/json"});
-            res.write("{\"ok\":true}");
-            res.end();
-        });
-        
-        
-    }).resume();
-}
-
-function map_put(req, res, bayeux) {
-	var body = "";
-	
-	//console.log("map_put");
-	
-	req.on('data', function(data) {
-        body += data;
-    });
-	
-	req.on('end', function() {
-		
-		//console.log("map_put req_end");
-        
-		var bucket = bucket_name();
-		
-		if(!bucket) {
-			res.writeHead(500, {"Content-Type": "application/json"});
-			res.write(JSON.stringify({ err: "Server is misconfigured: no bucket name"}));
-			res.end();
-			return;
-		}
-		
-		var decoded = dataurl.parse(body);
-		
-		if(!decoded) {
-			res.writeHead(400, {"Content-Type": "application/json"});
-			res.write(JSON.stringify({ err: "Could not decode the body as a data uri"}));
-			res.end();
-			return;
-		}
-		
-		decoded_map = Buffer.from(decoded.data);
-		
-        s3.putObject({
-			Bucket: bucket,
-			Key: "maps/map.png",
-			Body: decoded_map,
-			
-        }, function(err, data) {
-            
-            if(err) {
-                res.writeHead(500, {"Content-Type": "application/json"});
-                res.write(JSON.stringify(err));
-                res.end();
-                return;
-            }
-            
-            //notify clients
-            bayeux.getClient().publish('/map', { update: true });
-            
-            res.writeHead(200, { "Content-Type": "application/json"});
-            res.write("{\"ok\":true}");
-            res.end();
-        });
-        
-        
-    }).resume();
-}
-
 function save_get(req, res, bayeux) {
     var uri = url.parse(req.url);
     
-    var id = uri.pathname.substring(10); // remove /api/save/
-    
+    [room, id] = uri.pathname.substring(10).split('/'); // remove /api/save/
+	
     req.on('end', function() {
-        
+        if(!room || !id) {
+			res.writeHead(400, {"Content-Type": "application/json"});
+			res.write(JSON.stringify({ message: "Both room and id are required"}));
+			res.end();
+			return;
+		}
+	
 		//console.log("Querying for '" + id + "'");
         var params = {
             Key: {
@@ -181,21 +82,173 @@ function save_get(req, res, bayeux) {
     }).resume();
 }
 
-function map_get(req, res, bayeux) {
-	req.on('end', function() {
-		if(!decoded_map) {
-			res.writeHead(404, { "Content-Type": "application/json" });
-			res.write(JSON.stringify({ err: "No map has been uploaded" }));
+function save_put(req, res, bayeux) {
+    var uri = url.parse(req.url);
+    
+    [room, id] = uri.pathname.substring(10).split('/'); // remove /api/save/
+    
+    var body = "";
+    
+    req.on('data', function(data) {
+        body += data;
+    });
+    
+    req.on('end', function() {
+        //console.log(body);
+		
+		if(!room || !id) {
+			res.writeHead(400, {"Content-Type": "application/json"});
+			res.write(JSON.stringify({ message: "Both room and id are required"}));
 			res.end();
 			return;
 		}
 		
-		res.writeHead(200, { "Content-Type": "image/png" });
-		res.write(decoded_map);
-		res.end();
-		return;
+        var newItem = {
+            "name": {
+                S: id
+            },
+            "data": {
+                S: body
+            }
+        };
+        
+        dynamodb.putItem({
+            Item: newItem,
+            TableName: "characters"
+        }, function(err, data) {
+            
+            if(err) {
+                res.writeHead(500, {"Content-Type": "application/json"});
+                res.write(JSON.stringify(err));
+                res.end();
+                return;
+            }
+            
+            //notify clients
+            bayeux.getClient().publish('/room/' + room, {
+				kind: "character",
+				id: id,
+				character: JSON.parse(body)
+			});
+            
+            res.writeHead(200, { "Content-Type": "application/json"});
+            res.write("{\"ok\":true}");
+            res.end();
+        });
+        
+        
+    }).resume();
+}
+
+function map_get(req, res, bayeux) {
+	var uri = url.parse(req.url);
+    
+    [room] = uri.pathname.substring(9).split('/'); // remove /api/map/
+	
+	req.on('end', function() {
+		if(!room) {
+			res.writeHead(400, {"Content-Type": "application/json"});
+			res.write(JSON.stringify({ message: "The room is required"}));
+			res.end();
+			return;
+		}
+		
+		var onDone = () => {
+			res.writeHead(200, { "Content-Type": "image/png" });
+			res.write(decoded_maps[room]);
+			res.end();
+		};
+		
+		if(!decoded_maps[room]) {
+			s3.getObject({
+				Bucket: bucket_name(),
+				Key: "maps/" + room + "/map.png"
+			}, function(err, data) {
+				if(err) {
+					res.writeHead(404, { "Content-Type": "application/json" });
+					res.write(JSON.stringify({ err: "No map has been uploaded" }));
+					res.end();
+					return;
+				}
+				
+				decoded_maps[room] = Buffer.from(data.Body);
+				onDone();
+			})
+		} else {
+			onDone();
+		}
+		
 		
 	}).resume();
+}
+
+function map_put(req, res, bayeux) {
+	var body = "";
+	
+	var uri = url.parse(req.url);
+    
+    [room] = uri.pathname.substring(9).split('/'); // remove /api/map/
+	
+	//console.log("map_put");
+	
+	req.on('data', function(data) {
+        body += data;
+    });
+	
+	req.on('end', function() {
+		
+		//console.log("map_put req_end");
+		if(!room) {
+			res.writeHead(400, {"Content-Type": "application/json"});
+			res.write(JSON.stringify({ message: "The room is required"}));
+			res.end();
+			return;
+		}
+        
+		var bucket = bucket_name();
+		
+		if(!bucket) {
+			res.writeHead(500, {"Content-Type": "application/json"});
+			res.write(JSON.stringify({ err: "Server is misconfigured: no bucket name"}));
+			res.end();
+			return;
+		}
+		
+		var decoded = dataurl.parse(body);
+		
+		if(!decoded) {
+			res.writeHead(400, {"Content-Type": "application/json"});
+			res.write(JSON.stringify({ err: "Could not decode the body as a data uri"}));
+			res.end();
+			return;
+		}
+		
+		decoded_maps[room] = Buffer.from(decoded.data);
+		
+        s3.putObject({
+			Bucket: bucket,
+			Key: "maps/" + room + "/map.png",
+			Body: decoded_maps[room],
+			
+        }, function(err, data) {
+            
+            if(err) {
+                res.writeHead(500, {"Content-Type": "application/json"});
+                res.write(JSON.stringify(err));
+                res.end();
+                return;
+            }
+            
+            //notify clients
+            bayeux.getClient().publish('/room/' + room, { kind: "map" });
+            
+            res.writeHead(200, { "Content-Type": "application/json"});
+            res.write("{\"ok\":true}");
+            res.end();
+        });
+        
+        
+    }).resume();
 }
 
 module.exports = {
