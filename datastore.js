@@ -6,8 +6,9 @@ var s3 = new AWS.S3();
 
 const argv = require('yargs').argv;
 
-var decoded_map = null;
+var decoded_maps = {};
 
+/*
 if(bucket_name()) {
 	
 	s3.getObject({
@@ -22,7 +23,7 @@ if(bucket_name()) {
 		decoded_map = Buffer.from(data.Body);
 	})
 	
-}
+}*/
 
 function bucket_name() {
 	return argv.s3_bucket || process.env.S3_BUCKET;
@@ -124,7 +125,7 @@ function save_put(req, res, bayeux) {
             }
             
             //notify clients
-            bayeux.getClient().publish('/character/' + id, JSON.parse(body));
+            bayeux.getClient().publish('/character/' + room, JSON.parse(body));
             
             res.writeHead(200, { "Content-Type": "application/json"});
             res.write("{\"ok\":true}");
@@ -148,17 +149,31 @@ function map_get(req, res, bayeux) {
 			return;
 		}
 		
-		if(!decoded_map) {
-			res.writeHead(404, { "Content-Type": "application/json" });
-			res.write(JSON.stringify({ err: "No map has been uploaded" }));
+		var onDone = () => {
+			res.writeHead(200, { "Content-Type": "image/png" });
+			res.write(decoded_maps[room]);
 			res.end();
-			return;
+		};
+		
+		if(!decoded_maps[room]) {
+			s3.getObject({
+				Bucket: bucket_name(),
+				Key: "maps/" + room + "/map.png"
+			}, function(err, data) {
+				if(err) {
+					res.writeHead(404, { "Content-Type": "application/json" });
+					res.write(JSON.stringify({ err: "No map has been uploaded" }));
+					res.end();
+					return;
+				}
+				
+				decoded_maps[room] = Buffer.from(data.Body);
+				onDone();
+			})
+		} else {
+			onDone();
 		}
 		
-		res.writeHead(200, { "Content-Type": "image/png" });
-		res.write(decoded_map);
-		res.end();
-		return;
 		
 	}).resume();
 }
@@ -204,12 +219,12 @@ function map_put(req, res, bayeux) {
 			return;
 		}
 		
-		decoded_map = Buffer.from(decoded.data);
+		decoded_maps[room] = Buffer.from(decoded.data);
 		
         s3.putObject({
 			Bucket: bucket,
-			Key: "maps/map.png",
-			Body: decoded_map,
+			Key: "maps/" + room + "/map.png",
+			Body: decoded_maps[room],
 			
         }, function(err, data) {
             
@@ -221,7 +236,7 @@ function map_put(req, res, bayeux) {
             }
             
             //notify clients
-            bayeux.getClient().publish('/map', { update: true });
+            bayeux.getClient().publish('/map/' + room, { update: true });
             
             res.writeHead(200, { "Content-Type": "application/json"});
             res.write("{\"ok\":true}");
